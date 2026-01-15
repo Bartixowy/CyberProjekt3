@@ -3,7 +3,6 @@
 
 #define MAX_IMPLANTOW 100
 
-// Definicje struktur
 typedef enum { LEGALNY, SZARA_STREFA, NIELEGALNY } StatusLegalnosci;
 
 typedef struct {
@@ -18,7 +17,6 @@ typedef struct {
 Implant baza[MAX_IMPLANTOW];
 int licznik = 0;
 
-// Pomocnicza funkcja do wyświetlania statusu jako tekst
 const char* statusToString(StatusLegalnosci s) {
     switch(s) {
         case LEGALNY:
@@ -40,7 +38,7 @@ void dodajImplant() {
     Implant nowy;
     printf("\n--- REJESTRACJA NOWEGO IMPLANTU ---\n");
     printf("Podaj nazwe implantu: ");
-    scanf(" %[^\n]s", nowy.nazwa); // %[^\n]s pozwala wczytac spacje
+    scanf(" %[^\n]s", nowy.nazwa);
     printf("Podaj producenta: ");
     scanf(" %[^\n]s", nowy.producent);
     printf("Poziom ryzyka (0-10): ");
@@ -70,21 +68,80 @@ void wyswietlWszystkie() {
     }
 }
 
+void usunImplant() {
+    int id;
+    printf("Podaj numer ID rekordu do usuniecia: ");
+    scanf("%d", &id);
+
+    if (id < 0 || id >= licznik) {
+        printf("Nieprawidlowy numer rekordu.\n");
+        return;
+    }
+
+    if (baza[id].status == NIELEGALNY) {
+        printf("BLAD: Nie mozna usunac nielegalnego implantu! Jest dowodem w sprawie.\n");
+        return;
+    }
+
+    for (int i = id; i < licznik - 1; i++) {
+        baza[i] = baza[i+1];
+    }
+    licznik--;
+    printf("Rekord usuniety.\n");
+}
+
+void edytujImplant() {
+    int id;
+    printf("Podaj numer ID rekordu do edycji: ");
+    scanf("%d", &id);
+
+    if (id < 0 || id >= licznik) {
+        printf("Nieprawidlowy numer.\n");
+        return;
+    }
+
+    printf("Edytujesz implant: %s (Nazwa zablokowana do edycji)\n", baza[id].nazwa);
+
+    printf("Nowy producent (aktualny: %s): ", baza[id].producent);
+    scanf(" %[^\n]s", baza[id].producent);
+
+    printf("Nowe ryzyko (aktualne: %d): ", baza[id].poziomRyzyka);
+    scanf("%d", &baza[id].poziomRyzyka);
+
+
+    printf("Dane zaktualizowane.\n");
+}
+
 int main() {
     int wybor;
     do {
         printf("\n=== REJESTR ULEPSZEN CYBERNETYCZNYCH ===\n");
         printf("1. Dodaj implant\n");
         printf("2. Wyswietl wszystkie\n");
+        printf("3. Usun implant\n");
+        printf("4. Edytuj implant\n");
         printf("0. Wyjscie\n");
         printf("Wybor: ");
         scanf("%d", &wybor);
 
         switch(wybor) {
-            case 1: dodajImplant(); break;
-            case 2: wyswietlWszystkie(); break;
-            case 0: printf("Zamykanie systemu...\n"); break;
-            default: printf("Nieznana opcja.\n");
+            case 1:
+                dodajImplant();
+                break;
+            case 2:
+                wyswietlWszystkie();
+                break;
+            case 3:
+                usunImplant();
+                break;
+            case 4:
+                edytujImplant();
+                break;
+            case 0:
+                printf("Zamykanie systemu...\n");
+                break;
+            default:
+                printf("Nieznana opcja.\n");
         }
     } while (wybor != 0);
     return 0;
