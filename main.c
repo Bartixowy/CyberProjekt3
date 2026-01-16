@@ -1,9 +1,14 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#define MAX_IMPLANTOW 100
+#define PLIK_DANYCH "rejestr_cyber.dat"
 
-typedef enum { LEGALNY, SZARA_STREFA, NIELEGALNY } StatusLegalnosci;
+typedef enum {
+    LEGALNY = 0,
+    SZARA_STREFA = 1,
+    NIELEGALNY = 2
+} StatusLegalnosci;
 
 typedef struct {
     char nazwa[101];
@@ -14,36 +19,79 @@ typedef struct {
     char idWlasciciela[50];
 } Implant;
 
-Implant baza[MAX_IMPLANTOW];
-int licznik = 0;
+struct Wezel {
+    Implant dane;
+    struct Wezel* nastepny;
+};
+
+struct Wezel* glowa = NULL;
 
 const char* statusToString(StatusLegalnosci s) {
     switch(s) {
-        case LEGALNY:
-            return "Legalny";
-        case SZARA_STREFA:
-            return "Szara Strefa";
-        case NIELEGALNY:
-            return "Nielegalny";
-        default:
-            return "Nieznany";
+        case LEGALNY: return "Legalny";
+        case SZARA_STREFA: return "Szara Strefa";
+        case NIELEGALNY: return "Nielegalny";
+        default: return "Nieznany";
     }
 }
 
-void dodajImplant() {
-    if (licznik >= MAX_IMPLANTOW) {
-        printf("Baza przepelniona!\n");
+void dodajDoListy(Implant nowyImplant) {
+    struct Wezel* nowyWezel = (struct Wezel*)malloc(sizeof(struct Wezel));
+    if (nowyWezel == NULL) {
         return;
     }
+
+    nowyWezel->dane = nowyImplant;
+    nowyWezel->nastepny = NULL;
+
+    if (glowa == NULL) {
+        glowa = nowyWezel;
+    } else {
+        struct Wezel* temp = glowa;
+        while (temp->nastepny != NULL) {
+            temp = temp->nastepny;
+        }
+        temp->nastepny = nowyWezel;
+    }
+}
+
+void zapiszDoPliku() {
+    FILE *fp = fopen(PLIK_DANYCH, "wb");
+    if (fp == NULL) {
+        return;
+    }
+
+    struct Wezel* temp = glowa;
+    while (temp != NULL) {
+        fwrite(&(temp->dane), sizeof(Implant), 1, fp);
+        temp = temp->nastepny;
+    }
+    fclose(fp);
+}
+
+void wczytajZPliku() {
+    FILE *fp = fopen(PLIK_DANYCH, "rb");
+    if (fp == NULL) {
+        return;
+    }
+
+    Implant bufor;
+    while (fread(&bufor, sizeof(Implant), 1, fp) == 1) {
+        dodajDoListy(bufor);
+    }
+    fclose(fp);
+}
+
+void interfejsDodaj() {
     Implant nowy;
-    printf("\n--- REJESTRACJA NOWEGO IMPLANTU ---\n");
-    printf("Podaj nazwe implantu: ");
+    printf("\n--- DODAWANIE ---\n");
+    printf("Nazwa implantu: ");
     scanf(" %[^\n]s", nowy.nazwa);
-    printf("Podaj producenta: ");
+    printf("Producent: ");
     scanf(" %[^\n]s", nowy.producent);
     printf("Poziom ryzyka (0-10): ");
     scanf("%d", &nowy.poziomRyzyka);
-    printf("Zuzycie energii: ");
+    printf("Energia: ");
     scanf("%f", &nowy.energia);
 
     int st;
@@ -54,86 +102,93 @@ void dodajImplant() {
     printf("ID Wlasciciela: ");
     scanf(" %[^\n]s", nowy.idWlasciciela);
 
-    baza[licznik] = nowy;
-    licznik++;
-    printf("Implant zarejestrowany pomyślnie.\n");
+    dodajDoListy(nowy);
 }
 
 void wyswietlWszystkie() {
-    printf("\n--- LISTA OBYWATELI ULEPSZONYCH ---\n");
-    for (int i = 0; i < licznik; i++) {
-        printf("ID: %d | Nazwa: %s | Wlasciciel: %s | Status: %s | Ryzyko: %d\n",
-               i, baza[i].nazwa, baza[i].idWlasciciela,
-               statusToString(baza[i].status), baza[i].poziomRyzyka);
+    printf("\n--- LISTA ---\n");
+    if (glowa == NULL) {
+        printf("Pusta lista.\n");
+        return;
+    }
+
+    struct Wezel* temp = glowa;
+    int i = 0;
+    while (temp != NULL) {
+        printf("[%d] Nazwa: %-15s | Wlasciciel: %-10s | Status: %-10s | Ryzyko: %d\n",
+               i++, temp->dane.nazwa, temp->dane.idWlasciciela,
+               statusToString(temp->dane.status), temp->dane.poziomRyzyka);
+        temp = temp->nastepny;
     }
 }
 
 void usunImplant() {
+    wyswietlWszystkie();
+    if (glowa == NULL) return;
+
     int id;
-    printf("Podaj numer ID rekordu do usuniecia: ");
+    printf("Podaj indeks do usuniecia: ");
     scanf("%d", &id);
 
-    if (id < 0 || id >= licznik) {
-        printf("Nieprawidlowy numer rekordu.\n");
+    struct Wezel* temp = glowa;
+    struct Wezel* poprzedni = NULL;
+
+    if (id == 0) {
+        if (temp->dane.status == NIELEGALNY) {
+            printf("BLAD: Nie mozna usunac implantu nielegalnego.\n");
+            return;
+        }
+        glowa = temp->nastepny;
+        free(temp);
+        printf("Usunieto.\n");
         return;
     }
 
-    if (baza[id].status == NIELEGALNY) {
-        printf("BLAD: Nie mozna usunac nielegalnego implantu! Jest dowodem w sprawie.\n");
+    int counter = 0;
+    while (temp != NULL && counter != id) {
+        poprzedni = temp;
+        temp = temp->nastepny;
+        counter++;
+    }
+
+    if (temp == NULL) {
+        printf("Bledny indeks.\n");
         return;
     }
 
-    for (int i = id; i < licznik - 1; i++) {
-        baza[i] = baza[i+1];
+    if (temp->dane.status == NIELEGALNY) {
+        printf("BLAD: Nie mozna usunac implantu nielegalnego.\n");
+        return;
     }
-    licznik--;
-    printf("Rekord usuniety.\n");
+
+    poprzedni->nastepny = temp->nastepny;
+    free(temp);
+    printf("Usunieto.\n");
 }
 
 void edytujImplant() {
+    wyswietlWszystkie();
     int id;
-    printf("Podaj numer ID rekordu do edycji: ");
+    printf("Podaj indeks do edycji: ");
     scanf("%d", &id);
 
-    if (id < 0 || id >= licznik) {
-        printf("Nieprawidlowy numer.\n");
+    struct Wezel* temp = glowa;
+    int counter = 0;
+    while (temp != NULL && counter != id) {
+        temp = temp->nastepny;
+        counter++;
+    }
+
+    if (temp == NULL) {
+        printf("Bledny indeks.\n");
         return;
     }
 
-    printf("Edytujesz implant: %s (Nazwa zablokowana do edycji)\n", baza[id].nazwa);
-
-    printf("Nowy producent (aktualny: %s): ", baza[id].producent);
-    scanf(" %[^\n]s", baza[id].producent);
-
-    printf("Nowe ryzyko (aktualne: %d): ", baza[id].poziomRyzyka);
-    scanf("%d", &baza[id].poziomRyzyka);
-
-
-    printf("Dane zaktualizowane.\n");
-}
-
-void zapiszDoPliku() {
-    FILE *fp = fopen("rejestr.dat", "wb");
-    if (fp == NULL) {
-        printf("Blad zapisu pliku!\n");
-        return;
-    }
-    fwrite(&licznik, sizeof(int), 1, fp);
-    fwrite(baza, sizeof(Implant), licznik, fp);
-    fclose(fp);
-    printf("Baza danych zapisana.\n");
-}
-
-void wczytajZPliku() {
-    FILE *fp = fopen("rejestr.dat", "rb");
-    if (fp == NULL) {
-        printf("Brak pliku bazy danych. Tworze nowa.\n");
-        return;
-    }
-    fread(&licznik, sizeof(int), 1, fp);
-    fread(baza, sizeof(Implant), licznik, fp);
-    fclose(fp);
-    printf("Wczytano %d rekordow.\n", licznik);
+    printf("Edycja implantu: %s\n", temp->dane.nazwa);
+    printf("Nowy producent: ");
+    scanf(" %[^\n]s", temp->dane.producent);
+    printf("Nowe ryzyko: ");
+    scanf("%d", &temp->dane.poziomRyzyka);
 }
 
 void szukajPoWlascicielu() {
@@ -141,34 +196,64 @@ void szukajPoWlascicielu() {
     printf("Podaj ID wlasciciela: ");
     scanf(" %[^\n]s", szukany);
 
-    printf("\nWyniki wyszukiwania:\n");
+    struct Wezel* temp = glowa;
     int znaleziono = 0;
-    for(int i=0; i<licznik; i++) {
-        if(strcmp(baza[i].idWlasciciela, szukany) == 0) {
-            printf(" -> Implant: %s, Producent: %s, Ryzyko: %d\n",
-                   baza[i].nazwa, baza[i].producent, baza[i].poziomRyzyka);
+
+    while (temp != NULL) {
+        if (strcmp(temp->dane.idWlasciciela, szukany) == 0) {
+            printf(" -> %s (Ryzyko: %d)\n", temp->dane.nazwa, temp->dane.poziomRyzyka);
             znaleziono = 1;
         }
+        temp = temp->nastepny;
     }
-    if(!znaleziono) printf("Brak implantow dla tego obywatela.\n");
+    if (!znaleziono) printf("Brak wynikow.\n");
+}
+
+void sortujImplanty() {
+    if (glowa == NULL) return;
+
+    int zamiana;
+    struct Wezel *ptr1;
+    struct Wezel *lptr = NULL;
+
+    do {
+        zamiana = 0;
+        ptr1 = glowa;
+
+        while (ptr1->nastepny != lptr) {
+            if (ptr1->dane.poziomRyzyka < ptr1->nastepny->dane.poziomRyzyka) {
+                Implant temp = ptr1->dane;
+                ptr1->dane = ptr1->nastepny->dane;
+                ptr1->nastepny->dane = temp;
+                zamiana = 1;
+            }
+            ptr1 = ptr1->nastepny;
+        }
+        lptr = ptr1;
+    } while (zamiana);
+    printf("Posortowano.\n");
+}
+
+void zwolnijPamiec() {
+    struct Wezel* temp = glowa;
+    while (temp != NULL) {
+        struct Wezel* doUsuniecia = temp;
+        temp = temp->nastepny;
+        free(doUsuniecia);
+    }
+    glowa = NULL;
 }
 
 int main() {
     wczytajZPliku();
     int wybor;
     do {
-        printf("\n=== REJESTR ULEPSZEN CYBERNETYCZNYCH ===\n");
-        printf("1. Dodaj implant\n");
-        printf("2. Wyswietl wszystkie\n");
-        printf("3. Usun implant\n");
-        printf("4. Edytuj implant\n");
-        printf("0. Wyjscie\n");
-        printf("Wybor: ");
+        printf("\n1. Dodaj\n2. Wyswietl\n3. Usun\n4. Edytuj\n5. Szukaj\n6. Sortuj\n0. Wyjscie\nWybor: ");
         scanf("%d", &wybor);
 
         switch(wybor) {
             case 1:
-                dodajImplant();
+                interfejsDodaj();
                 break;
             case 2:
                 wyswietlWszystkie();
@@ -179,12 +264,18 @@ int main() {
             case 4:
                 edytujImplant();
                 break;
+            case 5:
+                szukajPoWlascicielu();
+                break;
+            case 6:
+                sortujImplanty();
+                break;
             case 0:
                 zapiszDoPliku();
-                printf("Zamykanie systemu...\n");
+                zwolnijPamiec();
                 break;
             default:
-                printf("Nieznana opcja.\n");
+                break;
         }
     } while (wybor != 0);
     return 0;
