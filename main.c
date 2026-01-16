@@ -112,7 +112,49 @@ void edytujImplant() {
     printf("Dane zaktualizowane.\n");
 }
 
+void zapiszDoPliku() {
+    FILE *fp = fopen("rejestr.dat", "wb");
+    if (fp == NULL) {
+        printf("Blad zapisu pliku!\n");
+        return;
+    }
+    fwrite(&licznik, sizeof(int), 1, fp);
+    fwrite(baza, sizeof(Implant), licznik, fp);
+    fclose(fp);
+    printf("Baza danych zapisana.\n");
+}
+
+void wczytajZPliku() {
+    FILE *fp = fopen("rejestr.dat", "rb");
+    if (fp == NULL) {
+        printf("Brak pliku bazy danych. Tworze nowa.\n");
+        return;
+    }
+    fread(&licznik, sizeof(int), 1, fp);
+    fread(baza, sizeof(Implant), licznik, fp);
+    fclose(fp);
+    printf("Wczytano %d rekordow.\n", licznik);
+}
+
+void szukajPoWlascicielu() {
+    char szukany[50];
+    printf("Podaj ID wlasciciela: ");
+    scanf(" %[^\n]s", szukany);
+
+    printf("\nWyniki wyszukiwania:\n");
+    int znaleziono = 0;
+    for(int i=0; i<licznik; i++) {
+        if(strcmp(baza[i].idWlasciciela, szukany) == 0) {
+            printf(" -> Implant: %s, Producent: %s, Ryzyko: %d\n",
+                   baza[i].nazwa, baza[i].producent, baza[i].poziomRyzyka);
+            znaleziono = 1;
+        }
+    }
+    if(!znaleziono) printf("Brak implantow dla tego obywatela.\n");
+}
+
 int main() {
+    wczytajZPliku();
     int wybor;
     do {
         printf("\n=== REJESTR ULEPSZEN CYBERNETYCZNYCH ===\n");
@@ -138,6 +180,7 @@ int main() {
                 edytujImplant();
                 break;
             case 0:
+                zapiszDoPliku();
                 printf("Zamykanie systemu...\n");
                 break;
             default:
